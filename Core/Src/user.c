@@ -254,21 +254,21 @@ void UART_Process(void)
 {
 	if(uart_state == 2)
 	{
-		if(Check_str(USRT_Rx_Buff,AT,0,3) == 0)
+		if(strncmp(USRT_Rx_Buff,AT,3) == 0)
     {
-        if(Check_str(USRT_Rx_Buff,SIN,3,4) == 0)
+				if(strncmp(USRT_Rx_Buff+3,SIN,4) == 0)
         {
 					Wave_Config.Wave = SinWave;
 					Freq_Set();
         }else
 				{
-					if(Check_str(USRT_Rx_Buff,PWM,3,4) == 0)
+					if(strncmp(USRT_Rx_Buff+3,PWM,4) == 0)
 					{
 						Wave_Config.Wave = PWMWave;
 						Freq_Set();
 						Duty_Set();
 					}else{
-					if(Check_str(USRT_Rx_Buff,Trg,3,4) == 0)
+					if(strncmp(USRT_Rx_Buff+3,Trg,4)	== 0)
 					{
 						Wave_Config.Wave = TriangleWave;
 						Freq_Set();
@@ -295,22 +295,6 @@ void UART_Process(void)
 	}
 }
 
-/** 字符串比较函数 ——逐字比较法
-	* 参  数：str1	需要被比较的字符串指针
-	* 参	数：str2	比较的字符串指针
-	* 参	数：hand	被比较的起始字符索引
-	* 参	数：Number	比较的字符数
-	* 返回值：0表示比较结果相同，1表示比较结果不同
-	*/
-uint8_t Check_str(uint8_t *str1,const uint8_t *str2,uint8_t hand,uint8_t Number)
-{
-    for (uint8_t i =0;i<Number; i++)
-    {
-        if ((*(str1+hand+i)) != (*(str2+i))) return 1;
-    }
-    return 0;
-}
-
 /** 读取并设置频率
 	*/
 void Freq_Set(void)
@@ -318,7 +302,7 @@ void Freq_Set(void)
 	uint16_t NUM=0;
 	uint8_t n=0,b=0;
 	uint8_t rx_Data[6];
-	if(Check_str(USRT_Rx_Buff,Freq,7,5) == 0)
+	if(strncmp(USRT_Rx_Buff+7,Freq,5) == 0)
 	{
 			while((*(USRT_Rx_Buff+12+n) != 0))
 			{
@@ -344,7 +328,7 @@ void Duty_Set(void)
 	uint16_t NUM=0;
 	uint8_t n=0,b=0;
 	uint8_t rx_Data[6];
-	if(Check_str(USRT_Rx_Buff,Duty,7,5) == 0)
+	if(strncmp(USRT_Rx_Buff+7,Duty,5) == 0)
 	{
 			while((*(USRT_Rx_Buff+12+n) != '\0'))
 			{

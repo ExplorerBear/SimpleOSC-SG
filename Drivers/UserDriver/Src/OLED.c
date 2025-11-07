@@ -2,15 +2,18 @@
 #include <string.h>
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <stdarg.h>
+
 
 uint8_t *SendByte_Addr;//单次传输一行的数据数组地址，由malloc申请，传输完成回调函数释放
 
 /**
-	*	PageNum[7::0]: [6::4]:当前页页数，最后一页页数[2::0] bit7：二次更新标志位,bit4:空闲
+	*	PageNum[7::0]: [7::4]:当前页页数，最后一页页数[2::0] ,bit4:二次更新标志位
 	* OLED_state[7::0]: [6::0]: 更新的页的起始位置（x），bit7: IT/DMA传输标志位
 	*/
-uint8_t PageNum=0,OLED_state=0,OLED_Width;
+volatile uint8_t PageNum=0,OLED_state=0,OLED_Width;
 
 
 /*********** Tool Function **********/
@@ -37,7 +40,6 @@ void OLED_WriteCommand(uint8_t Command)
 	uint8_t Sendbyte[2]= {0x00,};
 	Sendbyte[1] = Command;
 	HAL_I2C_Master_Transmit(&IIC,IIC_Addr,Sendbyte,2,200);
-	//HAL_I2C_Master_Transmit_DMA(&IIC,IIC_Addr,Sendbyte,2);
 }
 
 /**
@@ -48,17 +50,16 @@ void OLED_WriteCommand(uint8_t Command)
   */
 void OLED_WriteData(uint8_t *Data, uint8_t Count)
 {
+	
 	uint8_t *Sendbyte;
 	Sendbyte = (uint8_t *)malloc((Count+1)*sizeof(uint8_t));
 	SendByte_Addr = Sendbyte;
 	*Sendbyte=0x40;
-	for(uint8_t i=0;i<Count;i++)
-	{
-		*(Sendbyte+1+i) = *(Data+i);
-	}
+	
+	memcpy(Sendbyte+1,Data,Count);
 	
 	#ifdef IIC_Mode_Blocking
-	HAL_I2C_Master_Transmit(&IIC,IIC_Addr,Sendbyte,Count+1,200);
+	HAL_I2C_Master_Transmit(&IIC,IIC_Addr,Sendbyte,Count+1,100);
 	free(Sendbyte);
 	#endif
 	
@@ -83,20 +84,20 @@ void OLED_Transmit_Datas(void)
 	static uint8_t PgEnd,Page,X;
 	X = OLED_state&0x7f;
 	PgEnd = PageNum & (0x07);
-	Page = (PageNum>>4) & 0x07;
+	Page = (PageNum>>4) & 0x0f;
 	if(Page<=PgEnd){
 		OLED_SetCursor(Page, X);
 		OLED_WriteData((OLED_DisplayBuf+(Page*128)), OLED_Width);
-		PageNum += (0x1<<4); 
-	}else
+		PageNum += (0x1<<4);
+	}
+	else
 	{
-		
-		if((((OLED_state>>7)&0X01) == 1) && ((PageNum>>7)&0X01) == 1)
+		if((((OLED_state>>7)&0X01) == 1) && ((PageNum&0x08)>>3) == 1)
 		{
 			OLED_state &= 0x7f;
-			PageNum &= 0x7f;
+			PageNum &= 0xf7;
 			OLED_Update();
-		}else if((((OLED_state>>7)&0X01) == 1) && ((PageNum>>7)&0X01) == 0) OLED_state &= 0x7f;
+		}else if((((OLED_state>>7)&0X01) == 1) && ((PageNum&0x08)>>3) == 0) OLED_state &= 0x7f;
 		
 	}
 	
@@ -180,12 +181,6 @@ void OLED_DeInit(void)
   */
 void OLED_SetCursor(uint8_t Page, uint8_t X)
 {
-	/*如果使用此程序驱动1.3寸的OLED显示屏，则需要解除此注释*/
-	/*因为1.3寸的OLED驱动芯片（SH1106）有132列*/
-	/*屏幕的起始列接在了第2列，而不是第0列*/
-	/*所以需要将X加2，才能正常显示*/
-//	X += 2;
-	
 	/*通过指令设置页地址和列地址*/
 	OLED_WriteCommand(0xB0 | Page);					//设置页位置
 	OLED_WriteCommand(0x10 | ((X & 0xF0) >> 4));	//设置X位置高4位
@@ -208,7 +203,7 @@ void OLED_Update(void)
 	#ifndef IIC_Mode_Blocking 
 	if(((OLED_state>>7)&0x01) == 1)//用于判断对屏幕的刷新是否完成
 	{
-		PageNum = PageNum | (0x1<<7);//设置自动重刷新标志位
+		PageNum = PageNum | (0x1<<3);//设置自动重刷新标志位
 		return;
 	} 
 		
@@ -252,7 +247,7 @@ void OLED_UpdateArea(int16_t X, int16_t Y, uint8_t Width, uint8_t Height)
 	#ifndef IIC_Mode_Blocking
 	if(((OLED_state>>7)&0x01) == 1)
 	{
-		PageNum = PageNum | (0x1<<7);
+		PageNum = PageNum | (0x1<<3);
 		return;
 	}
 	OLED_state |= (0x1<<7);
